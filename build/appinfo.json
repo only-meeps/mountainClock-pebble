@@ -1,0 +1,30 @@
+{
+    "displayName": "mountainClock",
+    "uuid": "b98d8c35-bca0-45af-9902-a50f8d6961f4",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+        "basalt",
+        "diorite",
+        "emery",
+        "flint"
+    ],
+    "watchapp": {
+        "watchface": false
+    },
+    "messageKeys": {
+        "dummy": 10000
+    },
+    "resources": {
+        "media": []
+    },
+    "name": "mountainClock",
+    "shortName": "mountainClock",
+    "longName": "mountainClock",
+    "versionLabel": "1.0",
+    "companyName": "meep apps",
+    "appKeys": {
+        "dummy": 10000
+    },
+    "capabilities": []
+}
