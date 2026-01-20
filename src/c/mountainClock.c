@@ -9,7 +9,7 @@ static char s_climbed_buffer[8];
 static GFont s_generic_font;
 static GFont s_generic_small_font;
 static Layer *s_line_layer;
-static bool climbingUp = true;
+static bool climbingUp = false;
 static double percent_climbed = 0.5;
 
 static GPoint GPointAdd(GPoint point, GPoint addedPoint)
@@ -45,8 +45,6 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
     clamped_y = 0;
   }
   GPoint offset = GPoint((bounds.size.w - center.x)- bounds.size.w / 2, clamped_y);
-  // APP_LOG(APP_LOG_LEVEL_DEBUG, "offset x: %i offset y: %i", offset.x, offset.y);
-  // APP_LOG(APP_LOG_LEVEL_DEBUG, "center x: %i center y: %i", center.x, offset.y);
   start_point1 = GPoint(start_point1.x + offset.x, start_point1.y + offset.y);
   end_point1 = GPoint(end_point1.x + offset.x, end_point1.y + offset.y);
   start_point2 = GPoint(start_point2.x + offset.x, start_point2.y + offset.y);
@@ -162,7 +160,7 @@ static void update_time() {
     }
     else
     {
-      layer_set_frame(text_layer_get_layer(s_climbed_layer), GRect(bounds.size.w - 10, 60, 70, 30));
+      layer_set_frame(text_layer_get_layer(s_climbed_layer), GRect(bounds.size.w - 80, 60, 70, 30));
     }
     snprintf(s_climbed_buffer, sizeof(s_climbed_buffer), "%% %d", display_val);
     text_layer_set_text(s_climbed_layer, s_climbed_buffer);
