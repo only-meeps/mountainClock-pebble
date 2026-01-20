@@ -10,10 +10,7 @@
         "flint"
     ],
     "watchapp": {
-        "watchface": false
-    },
-    "messageKeys": {
-        "dummy": 10000
+        "watchface": true
     },
     "resources": {
         "media": []
@@ -23,8 +20,7 @@
     "longName": "mountainClock",
     "versionLabel": "1.0",
     "companyName": "meep apps",
-    "appKeys": {
-        "dummy": 10000
-    },
+    "messageKeys": {},
+    "appKeys": {},
     "capabilities": []
 }

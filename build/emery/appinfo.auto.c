@@ -13,7 +13,7 @@ const PebbleProcessInfo __pbl_app_info __attribute__ ((section (".pbl_header")))
   .company = "meep apps",
   .icon_resource_id = DEFAULT_MENU_ICON,
   .sym_table_addr = 0xA7A7A7A7,
-  .flags = PROCESS_INFO_PLATFORM_EMERY,
+  .flags = PROCESS_INFO_WATCH_FACE | PROCESS_INFO_PLATFORM_EMERY,
   .num_reloc_entries = 0xdeadcafe,
   .uuid = { 0xB9, 0x8D, 0x8C, 0x35, 0xBC, 0xA0, 0x45, 0xAF, 0x99, 0x02, 0xA5, 0x0F, 0x8D, 0x69, 0x61, 0xF4 },
   .virtual_size = 0xb6b6
