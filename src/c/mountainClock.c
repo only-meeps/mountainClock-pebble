@@ -1,17 +1,38 @@
 #include <pebble.h>
+#include <stdio.h>
 static Window *s_window;
 static TextLayer *s_text_layer;
 static TextLayer *s_date_text_layer;
 static TextLayer *s_climbed_layer;
+static TextLayer *s_steps_layer;
 static char s_buffer[32];
 static char s_date_buffer[16];
 static char s_climbed_buffer[8];
+static char s_step_count_buffer[16];
 static GFont s_generic_font;
 static GFont s_generic_small_font;
 static Layer *s_line_layer;
-static bool climbingUp = false;
-static double percent_climbed = 0.5;
+static bool climbingUp = true;
+static double percent_climbed = 0.0;
+static double steps_per_side = 1000;
+static int mountainsCompleted = 0;
+static int mountainsCompletedToday = 0;
+static uint32_t key_mountains_completed = 0;
+static uint32_t key_mountains_completed_today = 1;
+static uint32_t key_last_date_written = 2;
 
+uint32_t pebble_isqrt(uint32_t n) {
+  if (n < 2)
+    return n;
+
+  uint32_t x = n;
+  uint32_t y = (x + 1) / 2;
+  while (y < x) {
+    x = y;
+    y = (x + n / x) / 2;
+  }
+  return x;
+}
 static GPoint GPointAdd(GPoint point, GPoint addedPoint) {
   return GPoint(point.x + addedPoint.x, point.y + addedPoint.y);
 }
@@ -21,12 +42,13 @@ static GPoint GPointSub(GPoint point, GPoint subPoint) {
 static void graphics_update_proc(Layer *layer, GContext *ctx) {
   double scale_factor = 10;
   GRect bounds = layer_get_bounds(layer);
-  GPoint start_point1 = GPoint(0, bounds.size.h);
-  GPoint end_point1 = GPoint(bounds.size.w / 2, 20);
-  GPoint start_point2 = GPoint(bounds.size.w, bounds.size.h);
-  GPoint end_point2 = GPoint(bounds.size.w / 2, 20);
+  GPoint start_point1 = GPoint(-steps_per_side, bounds.size.h);
+  GPoint end_point1 = GPoint(bounds.size.w / 2, -steps_per_side);
+
+  GPoint start_point2 = GPoint(steps_per_side, bounds.size.h);
+  GPoint end_point2 = GPoint(bounds.size.w / 2, -steps_per_side);
   GPoint start_middle = GPoint(bounds.size.w / 2, bounds.size.h);
-  GPoint end_middle = GPoint(bounds.size.w / 2, 20);
+  GPoint end_middle = GPoint(bounds.size.w / 2, -steps_per_side);
   GPoint center = GPoint(0, 0);
   if (climbingUp) {
     center = GPoint(
@@ -103,17 +125,34 @@ static void prv_window_load(Window *window) {
   s_generic_small_font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
   s_climbed_layer = text_layer_create(GRect(10, 60, 70, 30));
   s_date_text_layer = text_layer_create(GRect(0, bounds.size.h - 30, 80, 30));
+  s_steps_layer = text_layer_create(GRect(10, 40, 70, 30));
+
   text_layer_set_font(s_climbed_layer, s_generic_small_font);
   text_layer_set_font(s_text_layer, s_generic_font);
   text_layer_set_font(s_date_text_layer, s_generic_small_font);
+  text_layer_set_font(s_steps_layer, s_generic_small_font);
+
   text_layer_set_text_alignment(s_climbed_layer, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_date_text_layer, GTextAlignmentCenter);
   text_layer_set_text_alignment(s_text_layer, GTextAlignmentCenter);
+  text_layer_set_text_alignment(s_steps_layer, GTextAlignmentCenter);
+
   text_layer_set_background_color(s_climbed_layer, GColorClear);
   text_layer_set_background_color(s_text_layer, GColorClear);
   text_layer_set_background_color(s_date_text_layer, GColorClear);
+  text_layer_set_background_color(s_steps_layer, GColorClear);
   s_line_layer = layer_create(bounds);
+  time_t temp = time(NULL);
+  struct tm *tick_time = localtime(&temp);
+  int lastDaySet = tick_time->tm_yday;
+  persist_write_int(key_last_date_written, lastDaySet);
+  if (persist_exists(key_mountains_completed)) {
+    key_mountains_completed = persist_read_int(key_mountains_completed);
+  } else {
+    persist_write_int(key_mountains_completed, 0);
+  }
   layer_set_update_proc(s_line_layer, graphics_update_proc);
+  layer_add_child(window_layer, text_layer_get_layer(s_steps_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_climbed_layer));
   layer_add_child(window_layer, s_line_layer);
   layer_add_child(window_layer, text_layer_get_layer(s_text_layer));
@@ -133,17 +172,35 @@ static void update_time() {
   strftime(s_date_buffer, sizeof(s_date_buffer), "%a, %b %d", tick_time);
   strftime(s_buffer, sizeof(s_buffer), clock_is_24h_style() ? "%H:%M" : "%I:%M",
            tick_time);
-  int display_val = (int)(percent_climbed * 100);
 
+  time_t time_start = time_start_of_today();
+  time_t time_end = time(NULL);
+  struct tm *utc_tm = gmtime(&time_end);
+  HealthValue value = health_service_sum_averaged(
+      HealthMetricStepCount, time_start, time_end, HealthServiceTimeScopeDaily);
+  if ((int)value > steps_per_side && climbingUp == true) {
+    climbingUp = false;
+  } else if ((int)value > steps_per_side && climbingUp == false) {
+    mountainsCompleted += 1;
+    persist_write_int(key_mountains_completed, mountainsCompleted);
+    steps_per_side += 100;
+  }
+  percent_climbed = (value / steps_per_side);
+  int display_val = (int)(percent_climbed * 100);
   GRect bounds = layer_get_bounds(window_get_root_layer(s_window));
   if (climbingUp) {
     layer_set_frame(text_layer_get_layer(s_climbed_layer),
                     GRect(10, 60, 70, 30));
+    layer_set_frame(text_layer_get_layer(s_steps_layer), GRect(20, 40, 70, 30));
   } else {
     layer_set_frame(text_layer_get_layer(s_climbed_layer),
                     GRect(bounds.size.w - 80, 60, 70, 30));
+    layer_set_frame(text_layer_get_layer(s_steps_layer),
+                    GRect(bounds.size.w - 70, 30, 70, 30));
   }
   snprintf(s_climbed_buffer, sizeof(s_climbed_buffer), "%% %d", display_val);
+  snprintf(s_step_count_buffer, sizeof(s_step_count_buffer), "%d", (int)value);
+  text_layer_set_text(s_steps_layer, s_step_count_buffer);
   text_layer_set_text(s_climbed_layer, s_climbed_buffer);
   text_layer_set_text(s_text_layer, s_buffer);
   text_layer_set_text(s_date_text_layer, s_date_buffer);
