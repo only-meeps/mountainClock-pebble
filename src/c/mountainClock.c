@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+enum Weather {
+  cloudy,
+  snowy,
+  rainy,
+  lightning,
+};
 static Window *s_window;
 static TextLayer *s_text_layer;
 static TextLayer *s_date_text_layer;
@@ -16,17 +22,20 @@ static char s_step_count_buffer[16];
 static GFont s_generic_font;
 static GFont s_generic_small_font;
 static Layer *s_line_layer;
-static bool climbingUp = true;
+static bool climbingUp = false;
 static double percent_climbed = 0.0;
 static double steps_per_side = 1000;
 static int mountainsCompleted = 0;
 static int mountainsCompletedToday = 0;
+static int mountain_seed;
 static uint32_t key_mountains_completed = 0;
 static uint32_t key_mountains_completed_today = 1;
 static uint32_t key_last_date_written = 2;
 static uint32_t key_time_started = 3;
 static uint32_t key_time_finished = 4;
+static uint32_t key_mountain_seed = 5;
 static int dummy_step_provider = 200;
+static enum Weather currentWeather = rainy;
 
 uint32_t pebble_isqrt(uint32_t n) {
   if (n < 2)
@@ -41,12 +50,7 @@ uint32_t pebble_isqrt(uint32_t n) {
   return x;
 }
 void srand(unsigned int seed);
-static GPoint GPointAdd(GPoint point, GPoint addedPoint) {
-  return GPoint(point.x + addedPoint.x, point.y + addedPoint.y);
-}
-static GPoint GPointSub(GPoint point, GPoint subPoint) {
-  return GPoint(point.x - subPoint.x, point.y - subPoint.y);
-}
+
 static int Random(int Min, int Max) { return (rand() % (Max - Min + 1)) + Min; }
 static void graphics_update_proc(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
@@ -60,7 +64,8 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
   GPoint end_middle = GPoint(bounds.size.w / 2, -steps_per_side);
   GPoint center = GPoint(0, 0);
 
-  GRect cloudBounds = GRect(start_point1.x, 0, start_point2.x, 0);
+  GPoint cloudBoundsBottomLeft = GPoint(start_point1.x, 0);
+  GPoint cloudBoundsTopRight = GPoint(start_point2.x, start_middle.y);
   if (climbingUp) {
     center = GPoint(start_point1.x +
                         (end_point1.x - start_point1.x) * percent_climbed,
@@ -113,6 +118,90 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
     // Pointers[2] = pointing_spot;
   }
 
+  int backgroundMountains = 15;
+
+  for (int i = 0; i < backgroundMountains; i++) {
+    int cloudChance = Random(0, 1);
+    if (cloudChance == 0) {
+      int clouds = Random(1, 4);
+      for (int j = 0; j < clouds; j++) {
+        srand(i + j);
+        GPoint cloudPoints[6];
+        int cloudSize = Random(30, 100);
+        int cloudHeight = Random(20, 25);
+
+        GPoint cloudPositionMiddle =
+            GPoint(Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x),
+                   Random(cloudBoundsBottomLeft.y, cloudBoundsTopRight.y));
+        cloudPoints[0] =
+            GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2),
+                   (cloudPositionMiddle.y + center.y) - (cloudHeight / 2));
+        cloudPoints[1] =
+            GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2),
+                   (cloudPositionMiddle.y + center.y) - (cloudHeight / 2));
+        cloudPoints[2] =
+            GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2) + 10,
+                   (cloudPositionMiddle.y + center.y));
+        cloudPoints[3] =
+            GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2),
+                   (cloudPositionMiddle.y + center.y) + (cloudHeight / 2));
+        cloudPoints[4] =
+            GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2),
+                   (cloudPositionMiddle.y + center.y) + (cloudHeight / 2));
+        cloudPoints[5] =
+            GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2) - 10,
+                   (cloudPositionMiddle.y + center.y));
+
+        GPathInfo cloudInfo = {.num_points = 6, .points = cloudPoints};
+        GPath *s_cloud_path = gpath_create(&cloudInfo);
+        graphics_context_set_fill_color(ctx, GColorWhite);
+        graphics_context_set_stroke_color(ctx, GColorBlack);
+        graphics_context_set_stroke_width(ctx, 2);
+        gpath_draw_filled(ctx, s_cloud_path);
+        gpath_destroy(s_cloud_path);
+      }
+    }
+    srand(i);
+    GPoint mountainBottomMiddle = GPoint(
+        Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x), bounds.size.h);
+    GPoint mountainTopMiddle =
+        GPoint(mountainBottomMiddle.x, Random(-50, -100));
+    float size = Random(40, 80);
+    GPoint mountainBottomLeft =
+        GPoint(mountainBottomMiddle.x - size, bounds.size.h);
+    GPoint mountainBottomRight =
+        GPoint(mountainBottomMiddle.x + size, bounds.size.h);
+
+    GPoint mountainDarkPoints[3];
+    mountainDarkPoints[0] = GPoint(mountainBottomMiddle.x + center.x,
+                                   mountainBottomMiddle.y + center.y);
+    mountainDarkPoints[1] =
+        GPoint(mountainTopMiddle.x + center.x, mountainTopMiddle.y + center.y);
+    mountainDarkPoints[2] = GPoint(mountainBottomLeft.x + center.x,
+                                   mountainBottomLeft.y + center.y);
+
+    GPoint mountainLightPoints[3];
+    mountainLightPoints[0] = GPoint(mountainBottomMiddle.x + center.x - 1,
+                                    mountainBottomMiddle.y + center.y);
+    mountainLightPoints[1] = GPoint(mountainTopMiddle.x + center.x - 1,
+                                    mountainTopMiddle.y + center.y);
+    mountainLightPoints[2] = GPoint(mountainBottomRight.x + center.x,
+                                    mountainBottomRight.y + center.y);
+
+    GPathInfo lightInfo = {.num_points = 3, .points = mountainLightPoints};
+    GPathInfo darkInfo = {.num_points = 3, .points = mountainDarkPoints};
+
+    GPath *s_light_path = gpath_create(&lightInfo);
+    GPath *s_dark_path = gpath_create(&darkInfo);
+
+    graphics_context_set_fill_color(ctx, GColorMintGreen);
+    gpath_draw_filled(ctx, s_light_path);
+    graphics_context_set_fill_color(ctx, GColorGreen);
+    gpath_draw_filled(ctx, s_dark_path);
+    gpath_destroy(s_light_path);
+    gpath_destroy(s_dark_path);
+  }
+
   float diamondSize = 10;
 
   GPoint diamondTop =
@@ -133,7 +222,7 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
   GPath *s_pointer_path = gpath_create(&PointerInfo);
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_stroke_width(ctx, 2);
-  gpath_draw_outline_open(ctx, s_pointer_path);
+
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   graphics_context_set_fill_color(ctx,
                                   PBL_IF_COLOR_ELSE(GColorGreen, GColorBlack));
@@ -144,33 +233,39 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
   gpath_draw_filled(ctx, s_light_shade_path);
   gpath_draw_filled(ctx, s_light_shade_path);
 
-  gpath_destroy(s_pointer_path);
   gpath_destroy(s_dark_shade_path);
   gpath_destroy(s_light_shade_path);
 
-  int cloudCount = 100;
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Min %d %d", start_point2.x, start_point2.y);
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "Max %d %d", start_point1.x, start_point1.y);
+  int cloudCount = 30;
+  // APP_LOG(APP_LOG_LEVEL_DEBUG, "Min %d %d", start_point2.x, start_point2.y);
+  // APP_LOG(APP_LOG_LEVEL_DEBUG, "Max %d %d", start_point1.x, start_point1.y);
   for (int i = 0; i < cloudCount; i++) {
+    srand(i);
     GPoint cloudPoints[6];
     int cloudSize = Random(30, 100);
     int cloudHeight = Random(20, 25);
-    srand(i);
 
-    GPoint cloudPositionMiddle = GPoint(Random(start_point1.x, start_point2.x),
-                                        Random(100, end_middle.y));
-    cloudPoints[0] = GPoint(cloudPositionMiddle.x - (cloudSize / 2),
-                            cloudPositionMiddle.y - (cloudHeight / 2));
-    cloudPoints[1] = GPoint(cloudPositionMiddle.x + (cloudSize / 2),
-                            cloudPositionMiddle.y - (cloudHeight / 2));
-    cloudPoints[2] = GPoint(cloudPositionMiddle.x + (cloudSize / 2) + 10,
-                            cloudPositionMiddle.y);
-    cloudPoints[3] = GPoint(cloudPositionMiddle.x + (cloudSize / 2),
-                            cloudPositionMiddle.y + (cloudHeight / 2));
-    cloudPoints[4] = GPoint(cloudPositionMiddle.x - (cloudSize / 2),
-                            cloudPositionMiddle.y + (cloudHeight / 2));
-    cloudPoints[5] = GPoint(cloudPositionMiddle.x - (cloudSize / 2) - 10,
-                            cloudPositionMiddle.y);
+    GPoint cloudPositionMiddle =
+        GPoint(Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x),
+               Random(cloudBoundsBottomLeft.y, cloudBoundsTopRight.y));
+    cloudPoints[0] =
+        GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2),
+               (cloudPositionMiddle.y + center.y) - (cloudHeight / 2));
+    cloudPoints[1] =
+        GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2),
+               (cloudPositionMiddle.y + center.y) - (cloudHeight / 2));
+    cloudPoints[2] =
+        GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2) + 10,
+               (cloudPositionMiddle.y + center.y));
+    cloudPoints[3] =
+        GPoint((cloudPositionMiddle.x + center.x) + (cloudSize / 2),
+               (cloudPositionMiddle.y + center.y) + (cloudHeight / 2));
+    cloudPoints[4] =
+        GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2),
+               (cloudPositionMiddle.y + center.y) + (cloudHeight / 2));
+    cloudPoints[5] =
+        GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2) - 10,
+               (cloudPositionMiddle.y + center.y));
 
     GPathInfo cloudInfo = {.num_points = 6, .points = cloudPoints};
     GPath *s_cloud_path = gpath_create(&cloudInfo);
@@ -184,6 +279,8 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
       ctx, PBL_IF_COLOR_ELSE(GColorChromeYellow, GColorBlack));
   gpath_draw_filled(ctx, s_diamond_path);
   gpath_destroy(s_diamond_path);
+  gpath_draw_outline_open(ctx, s_pointer_path);
+  gpath_destroy(s_pointer_path);
 }
 static void prv_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
@@ -210,6 +307,7 @@ static void prv_window_load(Window *window) {
   text_layer_set_background_color(s_text_layer, GColorClear);
   text_layer_set_background_color(s_date_text_layer, GColorClear);
   text_layer_set_background_color(s_steps_layer, GColorClear);
+
   s_line_layer = layer_create(bounds);
   time_t temp = time(NULL);
   struct tm *tick_time = localtime(&temp);
@@ -265,14 +363,14 @@ static void update_time() {
     vibes_long_pulse();
     mountainsCompleted += 1;
     persist_write_int(key_mountains_completed, mountainsCompleted);
-    steps_per_side += 100;
+    steps_per_side += 200;
   }
+  percent_climbed = (value / steps_per_side);
   if (climbingUp) {
     display_val = (int)(percent_climbed * 100);
   } else {
-    display_val = ((int)(percent_climbed * 100) - 100);
+    display_val = ((int)(percent_climbed * 100));
   }
-  percent_climbed = (value / steps_per_side);
 
   GRect bounds = layer_get_bounds(window_get_root_layer(s_window));
   if (climbingUp) {
@@ -292,7 +390,7 @@ static void update_time() {
   text_layer_set_text(s_climbed_layer, s_climbed_buffer);
   text_layer_set_text(s_text_layer, s_buffer);
   text_layer_set_text(s_date_text_layer, s_date_buffer);
-  dummy_step_provider += 1;
+  dummy_step_provider += 10;
 }
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_time();
