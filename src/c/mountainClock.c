@@ -118,9 +118,18 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
     // Pointers[2] = pointing_spot;
   }
 
-  int backgroundMountains = 15;
+  int backgroundMountains = 17;
 
   for (int i = 0; i < backgroundMountains; i++) {
+    GPoint mountainBottomMiddle = GPoint(
+        Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x), bounds.size.h);
+    GPoint mountainTopMiddle =
+        GPoint(mountainBottomMiddle.x, Random(-50, -100));
+    float size = Random(40, 80);
+    GPoint mountainBottomLeft =
+        GPoint(mountainBottomMiddle.x - size, bounds.size.h);
+    GPoint mountainBottomRight =
+        GPoint(mountainBottomMiddle.x + size, bounds.size.h);
     int cloudChance = Random(0, 1);
     if (cloudChance == 0) {
       int clouds = Random(1, 4);
@@ -131,8 +140,8 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
         int cloudHeight = Random(20, 25);
 
         GPoint cloudPositionMiddle =
-            GPoint(Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x),
-                   Random(cloudBoundsBottomLeft.y, cloudBoundsTopRight.y));
+            GPoint(Random(mountainBottomLeft.x, mountainBottomRight.x),
+                   Random(mountainBottomMiddle.y, mountainTopMiddle.y));
         cloudPoints[0] =
             GPoint((cloudPositionMiddle.x + center.x) - (cloudSize / 2),
                    (cloudPositionMiddle.y + center.y) - (cloudHeight / 2));
@@ -162,15 +171,6 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
       }
     }
     srand(i);
-    GPoint mountainBottomMiddle = GPoint(
-        Random(cloudBoundsBottomLeft.x, cloudBoundsTopRight.x), bounds.size.h);
-    GPoint mountainTopMiddle =
-        GPoint(mountainBottomMiddle.x, Random(-50, -100));
-    float size = Random(40, 80);
-    GPoint mountainBottomLeft =
-        GPoint(mountainBottomMiddle.x - size, bounds.size.h);
-    GPoint mountainBottomRight =
-        GPoint(mountainBottomMiddle.x + size, bounds.size.h);
 
     GPoint mountainDarkPoints[3];
     mountainDarkPoints[0] = GPoint(mountainBottomMiddle.x + center.x,
@@ -194,9 +194,9 @@ static void graphics_update_proc(Layer *layer, GContext *ctx) {
     GPath *s_light_path = gpath_create(&lightInfo);
     GPath *s_dark_path = gpath_create(&darkInfo);
 
-    graphics_context_set_fill_color(ctx, GColorMintGreen);
+    graphics_context_set_fill_color(ctx, GColorBrightGreen);
     gpath_draw_filled(ctx, s_light_path);
-    graphics_context_set_fill_color(ctx, GColorGreen);
+    graphics_context_set_fill_color(ctx, GColorIslamicGreen);
     gpath_draw_filled(ctx, s_dark_path);
     gpath_destroy(s_light_path);
     gpath_destroy(s_dark_path);
